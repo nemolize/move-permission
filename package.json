@@ -3,12 +3,19 @@
   "version": "0.1.0",
   "description": "Move Claude Code permission entries between settings layers",
   "type": "module",
+  "bin": {
+    "move-permission": "./dist/cli.js"
+  },
+  "files": [
+    "dist"
+  ],
   "engines": {
     "node": ">=20"
   },
   "packageManager": "pnpm@11.11.0",
   "scripts": {
     "build": "tsc -p tsconfig.json",
+    "prepack": "tsc -p tsconfig.json",
     "lint": "run-p --continue-on-error \"lint:*\"",
     "lint:eslint": "eslint .",
     "lint:typecheck": "tsc -p tsconfig.json --noEmit",
