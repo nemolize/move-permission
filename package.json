@@ -16,6 +16,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "prepack": "tsc -p tsconfig.json",
+    "start": "node dist/cli.js",
     "lint": "run-p --continue-on-error \"lint:*\"",
     "lint:eslint": "eslint .",
     "lint:typecheck": "tsc -p tsconfig.json --noEmit",

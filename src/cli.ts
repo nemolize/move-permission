@@ -13,7 +13,9 @@ import {
   writeLayersAtomically,
 } from "./settings.js";
 
-const args = new Set(process.argv.slice(2));
+const args = new Set(
+  process.argv.slice(2).filter((argument) => argument !== "--"),
+);
 const usage = () => console.log("Usage: move-permission [--list] [--dry-run]");
 const printEntries = (): ReturnType<typeof discoverLayers> => {
   const layers = discoverLayers(process.cwd());

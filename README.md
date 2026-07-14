@@ -18,13 +18,13 @@ pnpm install --frozen-lockfile
 pnpm run build
 
 # Interactive mode
-node dist/cli.js
+pnpm start
 
 # List entries without modifying settings
-node dist/cli.js --list
+pnpm start -- --list
 
 # Preview a selected move without writing files
-node dist/cli.js --dry-run
+pnpm start -- --dry-run
 ```
 
 The command discovers the project root from the current directory, reads `permissions.allow`, `permissions.ask`, and `permissions.deny` from every accessible layer, and shows one unified list. Select entries, then move them to a writable destination or delete them.
