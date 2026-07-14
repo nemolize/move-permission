@@ -8,6 +8,25 @@ npx move-permission --list
 npx move-permission --dry-run
 ```
 
+## Run locally
+
+This repository pins Node.js and pnpm through [mise](https://mise.jdx.dev/).
+
+```sh
+mise install
+pnpm install --frozen-lockfile
+pnpm run build
+
+# Interactive mode
+node dist/cli.js
+
+# List entries without modifying settings
+node dist/cli.js --list
+
+# Preview a selected move without writing files
+node dist/cli.js --dry-run
+```
+
 The command discovers the project root from the current directory, reads `permissions.allow`, `permissions.ask`, and `permissions.deny` from every accessible layer, and shows one unified list. Select entries, then move them to a writable destination or delete them.
 
 Before writing, it previews touched files and asks for confirmation. Every modified settings file is backed up as `<file>.bak.<epoch>`, written through a temporary file, synced, renamed, and parsed again before use.
