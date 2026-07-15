@@ -2,6 +2,13 @@
 import { stdin as input, stdout as output } from "node:process";
 import { createInterface } from "node:readline/promises";
 
+import { CommanderError } from "commander";
+
+import {
+  createProgram,
+  exitCodeForCommanderError,
+  normalizeUserArguments,
+} from "./program.js";
 import {
   applyMoves,
   changedLayers,
@@ -13,10 +20,6 @@ import {
   writeLayersAtomically,
 } from "./settings.js";
 
-const args = new Set(
-  process.argv.slice(2).filter((argument) => argument !== "--"),
-);
-const usage = () => console.log("Usage: move-permission [--list] [--dry-run]");
 const printEntries = (): ReturnType<typeof discoverLayers> => {
   const layers = discoverLayers(process.cwd());
   const entries = entriesForLayers(layers);
@@ -59,13 +62,22 @@ const printPreview = (layers: ReturnType<typeof discoverLayers>): void => {
 };
 
 const main = async (): Promise<void> => {
-  if ([...args].some((arg) => !["--list", "--dry-run"].includes(arg))) {
-    usage();
-    process.exitCode = 2;
-    return;
+  const program = createProgram();
+  program.exitOverride();
+  try {
+    program.parse(normalizeUserArguments(process.argv.slice(2)), {
+      from: "user",
+    });
+  } catch (error: unknown) {
+    if (error instanceof CommanderError) {
+      process.exitCode = exitCodeForCommanderError(error);
+      return;
+    }
+    throw error;
   }
+  const options = program.opts<{ dryRun?: boolean; list?: boolean }>();
   const layers = printEntries();
-  if (args.has("--list")) return;
+  if (options.list === true) return;
   const entries = entriesForLayers(layers);
   if (!entries.length) return;
   const readline = createInterface({ input, output });
@@ -106,7 +118,7 @@ const main = async (): Promise<void> => {
   const planned = applyMoves(layers, moves);
   const changed = changedLayers(layers, planned);
   printPreview(changed);
-  if (args.has("--dry-run")) {
+  if (options.dryRun === true) {
     console.log("Dry run: no files were written.");
     return;
   }

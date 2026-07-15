@@ -17,6 +17,9 @@ mise install
 pnpm install --frozen-lockfile
 pnpm run build
 
+# Show command options
+pnpm start -- --help
+
 # Interactive mode
 pnpm start
 
