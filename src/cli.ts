@@ -17,14 +17,17 @@ import {
   type LayerName,
   type Move,
   renderSettings,
+  sourceScopesForLayers,
   writeLayersAtomically,
 } from "./settings.js";
 
-const printEntries = (): ReturnType<typeof discoverLayers> => {
-  const layers = discoverLayers(process.cwd());
-  const entries = entriesForLayers(layers);
+const printEntries = (
+  entries: ReturnType<typeof entriesForLayers>,
+  allEntries = entries,
+  includeLayer = true,
+): void => {
   const duplicateLayers = new Map<string, LayerName[]>();
-  for (const entry of entries) {
+  for (const entry of allEntries) {
     const key = `${entry.field}\u0000${entry.value}`;
     duplicateLayers.set(key, [
       ...(duplicateLayers.get(key) ?? []),
@@ -34,21 +37,21 @@ const printEntries = (): ReturnType<typeof discoverLayers> => {
   if (!entries.length) console.log("No permission entries found.");
   for (const [index, entry] of entries.entries()) {
     const key = `${entry.field}\u0000${entry.value}`;
-    const layersWithEntry = duplicateLayers.get(key) ?? [];
+    const otherLayers = [
+      ...new Set(
+        (duplicateLayers.get(key) ?? []).filter(
+          (layer) => layer !== entry.layer,
+        ),
+      ),
+    ];
     const duplicateNotice =
-      layersWithEntry.length > 1
-        ? ` ⚠ also in ${layersWithEntry
-            .filter((layer) => layer !== entry.layer)
-            .join(", ")}`
-        : "";
+      otherLayers.length > 0 ? ` ⚠ also in ${otherLayers.join(", ")}` : "";
     console.log(
-      `${index + 1}. [${entry.layer}] permissions.${entry.field} ${JSON.stringify(entry.value)}${duplicateNotice}`,
+      `${index + 1}. ${includeLayer ? `[${entry.layer}] ` : ""}permissions.${entry.field} ${JSON.stringify(entry.value)}${duplicateNotice}`,
     );
   }
-  return layers;
 };
-const layerNames = (layers: ReturnType<typeof discoverLayers>): LayerName[] =>
-  layers.filter((layer) => layer.writable).map((layer) => layer.name);
+
 const printPreview = (layers: ReturnType<typeof discoverLayers>): void => {
   console.log("\nPlanned changes:");
   for (const layer of layers) {
@@ -76,11 +79,38 @@ const main = async (): Promise<void> => {
     throw error;
   }
   const options = program.opts<{ dryRun?: boolean; list?: boolean }>();
-  const layers = printEntries();
-  if (options.list === true) return;
-  const entries = entriesForLayers(layers);
-  if (!entries.length) return;
+  const layers = discoverLayers(process.cwd());
+  const allEntries = entriesForLayers(layers);
+  if (options.list === true) {
+    printEntries(allEntries);
+    return;
+  }
+  const sourceScopes = sourceScopesForLayers(layers);
+  if (!sourceScopes.length) {
+    printEntries(allEntries);
+    return;
+  }
   const readline = createInterface({ input, output });
+  console.log(
+    "From scopes: " +
+      sourceScopes
+        .map(
+          (scope, index) =>
+            `${index + 1}. ${scope.layer.name} (${scope.entries.length} entries)`,
+        )
+        .join("  "),
+  );
+  const sourceIndex = Number(
+    await readline.question("Choose source scope (blank to cancel): "),
+  );
+  const sourceScope = sourceScopes[sourceIndex - 1];
+  if (sourceScope === undefined) {
+    readline.close();
+    console.log("Cancelled.");
+    return;
+  }
+  const { destinations, entries } = sourceScope;
+  printEntries(entries, allEntries, false);
   const selection = await readline.question(
     "Select entry numbers (comma-separated, blank to cancel): ",
   );
@@ -100,7 +130,6 @@ const main = async (): Promise<void> => {
     console.log("Cancelled.");
     return;
   }
-  const destinations = layerNames(layers);
   console.log(
     "Destinations: " +
       destinations.map((name, index) => `${index + 1}. ${name}`).join("  ") +
