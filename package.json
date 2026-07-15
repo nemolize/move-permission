@@ -1,0 +1,38 @@
+{
+  "name": "move-permission",
+  "version": "0.1.0",
+  "description": "Move Claude Code permission entries between settings layers",
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "packageManager": "pnpm@11.11.0",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "lint": "run-p --continue-on-error \"lint:*\"",
+    "lint:eslint": "eslint .",
+    "lint:typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint:prettier": "prettier --check .",
+    "fix": "run-s --continue-on-error fix:eslint fix:prettier",
+    "fix:eslint": "eslint . --fix",
+    "fix:prettier": "prettier --write .",
+    "test": "vitest run --passWithNoTests",
+    "test:coverage": "vitest run --coverage",
+    "check": "pnpm run lint:typecheck"
+  },
+  "devDependencies": {
+    "@eslint/compat": "^2.0.5",
+    "@eslint/js": "^10.0.1",
+    "@types/node": "^24.0.0",
+    "@vitest/coverage-v8": "^4.1.10",
+    "eslint": "^10.2.1",
+    "eslint-plugin-simple-import-sort": "^13.0.0",
+    "eslint-plugin-unused-imports": "^4.4.1",
+    "globals": "^17.5.0",
+    "npm-run-all2": "^9.0.0",
+    "prettier": "^3.8.3",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.59.1",
+    "vitest": "^4.1.10"
+  }
+}
