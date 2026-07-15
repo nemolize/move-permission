@@ -20,11 +20,28 @@ const usage = () => console.log("Usage: move-permission [--list] [--dry-run]");
 const printEntries = (): ReturnType<typeof discoverLayers> => {
   const layers = discoverLayers(process.cwd());
   const entries = entriesForLayers(layers);
+  const duplicateLayers = new Map<string, LayerName[]>();
+  for (const entry of entries) {
+    const key = `${entry.field}\u0000${entry.value}`;
+    duplicateLayers.set(key, [
+      ...(duplicateLayers.get(key) ?? []),
+      entry.layer,
+    ]);
+  }
   if (!entries.length) console.log("No permission entries found.");
-  for (const [index, entry] of entries.entries())
+  for (const [index, entry] of entries.entries()) {
+    const key = `${entry.field}\u0000${entry.value}`;
+    const layersWithEntry = duplicateLayers.get(key) ?? [];
+    const duplicateNotice =
+      layersWithEntry.length > 1
+        ? ` ⚠ also in ${layersWithEntry
+            .filter((layer) => layer !== entry.layer)
+            .join(", ")}`
+        : "";
     console.log(
-      `${index + 1}. [${entry.layer}] permissions.${entry.field} ${JSON.stringify(entry.value)}`,
+      `${index + 1}. [${entry.layer}] permissions.${entry.field} ${JSON.stringify(entry.value)}${duplicateNotice}`,
     );
+  }
   return layers;
 };
 const layerNames = (layers: ReturnType<typeof discoverLayers>): LayerName[] =>

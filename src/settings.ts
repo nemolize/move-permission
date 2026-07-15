@@ -51,6 +51,11 @@ const parseSettings = (source: string): Settings => {
 
 const userPath = (home: string, name: string) => join(home, ".claude", name);
 
+export const managedSettingsPath = (platform = process.platform): string =>
+  platform === "darwin"
+    ? "/Library/Application Support/ClaudeCode/managed-settings.json"
+    : "/etc/claude-code/managed-settings.json";
+
 const gitRoot = (cwd: string): string | undefined => {
   try {
     return execFileSync("git", ["-C", cwd, "rev-parse", "--show-toplevel"], {
@@ -99,7 +104,7 @@ export const discoverLayers = (
   }
   layers.push({
     name: "managed",
-    path: "/etc/claude-code/managed-settings.json",
+    path: managedSettingsPath(),
     writable: false,
     exists: false,
   });

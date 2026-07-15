@@ -15,6 +15,7 @@ import {
   changedLayers,
   entriesForLayers,
   loadLayer,
+  managedSettingsPath,
   renderSettings,
   writeLayersAtomically,
 } from "../src/settings.ts";
@@ -194,5 +195,14 @@ describe("settings", () => {
       "ask",
       "deny",
     ]);
+  });
+
+  it("uses the platform-specific managed settings path", () => {
+    expect(managedSettingsPath("darwin")).toBe(
+      "/Library/Application Support/ClaudeCode/managed-settings.json",
+    );
+    expect(managedSettingsPath("linux")).toBe(
+      "/etc/claude-code/managed-settings.json",
+    );
   });
 });
