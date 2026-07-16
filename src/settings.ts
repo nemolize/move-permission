@@ -40,6 +40,12 @@ export interface Move {
   destination?: LayerName;
 }
 
+export interface SourceScope {
+  layer: LayerName;
+  entries: PermissionEntry[];
+  destinations: LayerName[];
+}
+
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
 
@@ -146,6 +152,23 @@ export const entriesForLayers = (layers: Layer[]): PermissionEntry[] =>
         a.layer.localeCompare(b.layer),
     );
 
+export const sourceScopesForLayers = (layers: Layer[]): SourceScope[] => {
+  const writableLayerNames = layers
+    .filter((layer) => layer.writable)
+    .map((layer) => layer.name);
+  return layers.flatMap((layer) => {
+    const entries = entriesForLayers([layer]);
+    if (!layer.writable || entries.length === 0) return [];
+    return [
+      {
+        layer: layer.name,
+        entries,
+        destinations: writableLayerNames.filter((name) => name !== layer.name),
+      },
+    ];
+  });
+};
+
 const clone = <T>(value: T): T => structuredClone(value);
 
 const valuesFor = (settings: Settings, field: PermissionField): string[] => {
@@ -180,9 +203,9 @@ export const applyMoves = (layers: Layer[], moves: Move[]): Layer[] => {
   const byName = new Map(planned.map((layer) => [layer.name, layer]));
   for (const move of moves) {
     const source = byName.get(move.source.layer);
-    if (!source?.settings)
+    if (!source?.settings || source.writable !== true)
       throw new Error(
-        `Cannot modify unavailable source layer: ${move.source.layer}`,
+        `Cannot modify unavailable or read-only source layer: ${move.source.layer}`,
       );
     setValues(
       source.settings,

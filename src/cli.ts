@@ -4,6 +4,7 @@ import { createInterface } from "node:readline/promises";
 
 import { CommanderError } from "commander";
 
+import { formatEntries, promptForMoves } from "./interaction.js";
 import {
   createProgram,
   exitCodeForCommanderError,
@@ -14,41 +15,11 @@ import {
   changedLayers,
   discoverLayers,
   entriesForLayers,
-  type LayerName,
   type Move,
   renderSettings,
   writeLayersAtomically,
 } from "./settings.js";
 
-const printEntries = (): ReturnType<typeof discoverLayers> => {
-  const layers = discoverLayers(process.cwd());
-  const entries = entriesForLayers(layers);
-  const duplicateLayers = new Map<string, LayerName[]>();
-  for (const entry of entries) {
-    const key = `${entry.field}\u0000${entry.value}`;
-    duplicateLayers.set(key, [
-      ...(duplicateLayers.get(key) ?? []),
-      entry.layer,
-    ]);
-  }
-  if (!entries.length) console.log("No permission entries found.");
-  for (const [index, entry] of entries.entries()) {
-    const key = `${entry.field}\u0000${entry.value}`;
-    const layersWithEntry = duplicateLayers.get(key) ?? [];
-    const duplicateNotice =
-      layersWithEntry.length > 1
-        ? ` ⚠ also in ${layersWithEntry
-            .filter((layer) => layer !== entry.layer)
-            .join(", ")}`
-        : "";
-    console.log(
-      `${index + 1}. [${entry.layer}] permissions.${entry.field} ${JSON.stringify(entry.value)}${duplicateNotice}`,
-    );
-  }
-  return layers;
-};
-const layerNames = (layers: ReturnType<typeof discoverLayers>): LayerName[] =>
-  layers.filter((layer) => layer.writable).map((layer) => layer.name);
 const printPreview = (layers: ReturnType<typeof discoverLayers>): void => {
   console.log("\nPlanned changes:");
   for (const layer of layers) {
@@ -76,45 +47,25 @@ const main = async (): Promise<void> => {
     throw error;
   }
   const options = program.opts<{ dryRun?: boolean; list?: boolean }>();
-  const layers = printEntries();
-  if (options.list === true) return;
-  const entries = entriesForLayers(layers);
-  if (!entries.length) return;
-  const readline = createInterface({ input, output });
-  const selection = await readline.question(
-    "Select entry numbers (comma-separated, blank to cancel): ",
-  );
-  const selected = [
-    ...new Set(
-      selection
-        .split(",")
-        .map((item) => Number(item.trim()) - 1)
-        .filter(
-          (index) =>
-            Number.isInteger(index) && index >= 0 && index < entries.length,
-        ),
-    ),
-  ];
-  if (!selected.length) {
-    readline.close();
-    console.log("Cancelled.");
+  const layers = discoverLayers(process.cwd());
+  if (options.list === true) {
+    formatEntries(entriesForLayers(layers)).forEach((line) =>
+      console.log(line),
+    );
     return;
   }
-  const destinations = layerNames(layers);
-  console.log(
-    "Destinations: " +
-      destinations.map((name, index) => `${index + 1}. ${name}`).join("  ") +
-      "  0. delete",
-  );
-  const action = Number(await readline.question("Choose destination: "));
-  readline.close();
-  const destination = action === 0 ? undefined : destinations[action - 1];
-  if (action !== 0 && !destination) throw new Error("Invalid destination.");
-  const moves: Move[] = selected.map((index) => {
-    const source = entries[index];
-    if (source === undefined) throw new Error("Selected entry is unavailable.");
-    return destination === undefined ? { source } : { source, destination };
-  });
+  const readline = createInterface({ input, output });
+  let moves: Move[] | undefined;
+  try {
+    moves = await promptForMoves(
+      layers,
+      (prompt) => readline.question(prompt),
+      (line) => console.log(line),
+    );
+  } finally {
+    readline.close();
+  }
+  if (moves === undefined) return;
   const planned = applyMoves(layers, moves);
   const changed = changedLayers(layers, planned);
   printPreview(changed);

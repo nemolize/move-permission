@@ -17,6 +17,7 @@ import {
   loadLayer,
   managedSettingsPath,
   renderSettings,
+  sourceScopesForLayers,
   writeLayersAtomically,
 } from "../src/settings.ts";
 
@@ -195,6 +196,43 @@ describe("settings", () => {
       "ask",
       "deny",
     ]);
+  });
+
+  it("derives scoped entries and non-self writable destinations", () => {
+    const user = layer("user", "/tmp/settings.json", {
+      permissions: { allow: ["Bash(*)"] },
+    });
+    const project = layer("project", "/tmp/project-settings.json", {
+      permissions: { ask: ["Read(*)"] },
+    });
+    const managed = layer("managed", "/tmp/managed-settings.json", {
+      permissions: { deny: ["WebFetch(*)"] },
+    });
+
+    const scopes = sourceScopesForLayers([user, project, managed]);
+
+    expect(scopes.map((scope) => scope.layer)).toEqual(["user", "project"]);
+    expect(scopes[0]).toMatchObject({
+      entries: [{ layer: "user", field: "allow", value: "Bash(*)" }],
+      destinations: ["project"],
+    });
+    expect(scopes[1]).toMatchObject({
+      entries: [{ layer: "project", field: "ask", value: "Read(*)" }],
+      destinations: ["user"],
+    });
+  });
+
+  it("rejects moves from a read-only source layer", () => {
+    const managed = layer("managed", "/tmp/managed-settings.json", {
+      permissions: { allow: ["Read(*)"] },
+    });
+
+    expect(() =>
+      applyMoves(
+        [managed],
+        [{ source: { layer: "managed", field: "allow", value: "Read(*)" } }],
+      ),
+    ).toThrow("Cannot modify unavailable or read-only source layer: managed");
   });
 
   it("uses the platform-specific managed settings path", () => {

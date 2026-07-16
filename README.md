@@ -30,8 +30,8 @@ pnpm start -- --list
 pnpm start -- --dry-run
 ```
 
-The command discovers the project root from the current directory, reads `permissions.allow`, `permissions.ask`, and `permissions.deny` from every accessible layer, and shows one unified list. Select entries, then move them to a writable destination or delete them.
+The command discovers the project root from the current directory and reads `permissions.allow`, `permissions.ask`, and `permissions.deny` from every accessible layer. Interactive runs first prompt for a source scope and then show only entries from that scope. `--list` prints the unified list without modifying settings. Select entries, then move them to a writable destination or delete them.
 
 Before writing, it previews touched files and asks for confirmation. Every modified settings file is backed up as `<file>.bak.<epoch>`, written through a temporary file, synced, renamed, and parsed again before use.
 
-`managed-settings.json` is displayed when present but is never a destination. Invalid JSON in any accessible settings file stops the command rather than risking an overwrite.
+`managed-settings.json` is included in `--list` output when present but cannot be selected as an interactive source or destination. Interactive entries still note duplicates found in managed settings. Invalid JSON in any accessible settings file stops the command rather than risking an overwrite.
