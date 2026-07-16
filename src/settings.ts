@@ -41,7 +41,7 @@ export interface Move {
 }
 
 export interface SourceScope {
-  layer: Layer;
+  layer: LayerName;
   entries: PermissionEntry[];
   destinations: LayerName[];
 }
@@ -161,7 +161,7 @@ export const sourceScopesForLayers = (layers: Layer[]): SourceScope[] => {
     if (!layer.writable || entries.length === 0) return [];
     return [
       {
-        layer,
+        layer: layer.name,
         entries,
         destinations: writableLayerNames.filter((name) => name !== layer.name),
       },

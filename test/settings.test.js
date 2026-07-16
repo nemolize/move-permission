@@ -211,10 +211,7 @@ describe("settings", () => {
 
     const scopes = sourceScopesForLayers([user, project, managed]);
 
-    expect(scopes.map((scope) => scope.layer.name)).toEqual([
-      "user",
-      "project",
-    ]);
+    expect(scopes.map((scope) => scope.layer)).toEqual(["user", "project"]);
     expect(scopes[0]).toMatchObject({
       entries: [{ layer: "user", field: "allow", value: "Bash(*)" }],
       destinations: ["project"],
