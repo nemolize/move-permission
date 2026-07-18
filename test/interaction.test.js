@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { formatEntries, promptForMoves } from "../src/interaction.ts";
+import {
+  formatBrokenLayers,
+  formatEntries,
+  promptForMoves,
+} from "../src/interaction.ts";
 
 const layer = (name, settings, writable = true) => ({
   name,
@@ -69,6 +73,29 @@ describe("interactive permission selection", () => {
 
     expect(moves).toBeUndefined();
     expect(output.at(-1)).toBe("Cancelled.");
+  });
+
+  it("reports broken layers with their parse error", () => {
+    expect(
+      formatBrokenLayers([
+        {
+          name: "user-local",
+          path: "/tmp/settings.local.json",
+          writable: false,
+          exists: true,
+          error: "invalid JSON: Unexpected token",
+        },
+        {
+          name: "user",
+          path: "/tmp/settings.json",
+          writable: true,
+          exists: true,
+          settings: {},
+        },
+      ]),
+    ).toEqual([
+      "[user-local] /tmp/settings.local.json: invalid JSON: Unexpected token (skipped)",
+    ]);
   });
 
   it("keeps the unified layer labels used by list mode", () => {

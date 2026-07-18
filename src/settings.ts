@@ -27,6 +27,7 @@ export interface Layer {
   exists: boolean;
   settings?: Settings;
   source?: string;
+  error?: string;
 }
 
 export interface PermissionEntry {
@@ -114,7 +115,18 @@ export const discoverLayers = (
     writable: false,
     exists: false,
   });
-  return layers.map(loadLayer);
+  return layers.map((layer) => {
+    try {
+      return loadLayer(layer);
+    } catch (error) {
+      return {
+        ...layer,
+        exists: true,
+        writable: false,
+        error: error instanceof Error ? error.message : String(error),
+      };
+    }
+  });
 };
 
 export const loadLayer = (layer: Layer): Layer => {
@@ -258,6 +270,44 @@ const valueEnd = (source: string, start: number): number => {
   throw new Error("Could not find the end of a JSON value");
 };
 
+const renderArrayPreservingLayout = (
+  arraySource: string,
+  previous: string[],
+  next: string[],
+): string => {
+  if (!arraySource.includes("\n")) return JSON.stringify(next);
+  const inner = arraySource.slice(1, -1);
+  const closingIndentMatch = /\n([ \t]*)$/.exec(inner);
+  if (!closingIndentMatch) return JSON.stringify(next);
+  const closingIndent = closingIndentMatch[1] ?? "";
+  const elementPattern = /([ \t]*)"((?:\\.|[^"\\])*)"/g;
+  const elementLines = new Map<string, string>();
+  let elementIndent: string | undefined;
+  for (;;) {
+    const match = elementPattern.exec(inner);
+    if (!match) break;
+    const [, indent = "", raw = ""] = match;
+    if (elementIndent === undefined) elementIndent = indent;
+    let value: unknown;
+    try {
+      value = JSON.parse(`"${raw}"`);
+    } catch {
+      return JSON.stringify(next);
+    }
+    if (typeof value !== "string") return JSON.stringify(next);
+    elementLines.set(value, `${indent}${JSON.stringify(value)}`);
+  }
+  if (previous.some((value) => !elementLines.has(value)))
+    return JSON.stringify(next);
+  const fallbackIndent = elementIndent ?? `${closingIndent}  `;
+  const lines = next.map(
+    (value) =>
+      elementLines.get(value) ?? `${fallbackIndent}${JSON.stringify(value)}`,
+  );
+  if (lines.length === 0) return `[\n${closingIndent}]`;
+  return `[\n${lines.join(",\n")}\n${closingIndent}]`;
+};
+
 const replaceExistingPermissionArrays = (layer: Layer): string | undefined => {
   if (layer.source === undefined || layer.settings === undefined)
     return undefined;
@@ -291,8 +341,23 @@ const replaceExistingPermissionArrays = (layer: Layer): string | undefined => {
     const start = permissionsStart + match.index + match[0].length;
     if (rendered[start] !== "[") return undefined;
     const end = valueEnd(rendered, start);
-    rendered =
-      rendered.slice(0, start) + JSON.stringify(next) + rendered.slice(end);
+    const previousStrings = previous.filter(
+      (value): value is string => typeof value === "string",
+    );
+    const nextStrings = next.filter(
+      (value): value is string => typeof value === "string",
+    );
+    if (
+      previousStrings.length !== previous.length ||
+      nextStrings.length !== next.length
+    )
+      return undefined;
+    const replacement = renderArrayPreservingLayout(
+      rendered.slice(start, end),
+      previousStrings,
+      nextStrings,
+    );
+    rendered = rendered.slice(0, start) + replacement + rendered.slice(end);
   }
   return rendered;
 };

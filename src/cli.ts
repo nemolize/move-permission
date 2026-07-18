@@ -4,7 +4,11 @@ import { createInterface } from "node:readline/promises";
 
 import { CommanderError } from "commander";
 
-import { formatEntries, promptForMoves } from "./interaction.js";
+import {
+  formatBrokenLayers,
+  formatEntries,
+  promptForMoves,
+} from "./interaction.js";
 import {
   createProgram,
   exitCodeForCommanderError,
@@ -48,6 +52,7 @@ const main = async (): Promise<void> => {
   }
   const options = program.opts<{ dryRun?: boolean; list?: boolean }>();
   const layers = discoverLayers(process.cwd());
+  formatBrokenLayers(layers).forEach((line) => console.warn(line));
   if (options.list === true) {
     formatEntries(entriesForLayers(layers)).forEach((line) =>
       console.log(line),
