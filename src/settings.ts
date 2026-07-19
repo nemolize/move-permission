@@ -137,12 +137,24 @@ export const loadLayer = (layer: Layer): Layer => {
     settings = parseSettings(source);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    throw new Error(`${layer.path} contains invalid JSON: ${message}`, {
-      cause: error,
-    });
+    throw new Error(`contains invalid JSON: ${message}`, { cause: error });
   }
   return { ...layer, exists: true, source, settings };
 };
+
+export const nonStringPermissionValues = (
+  layers: Layer[],
+): { layer: LayerName; field: PermissionField; count: number }[] =>
+  layers.flatMap((layer) => {
+    const permissions = layer.settings?.permissions;
+    if (!permissions || typeof permissions !== "object") return [];
+    return permissionFields.flatMap((field) => {
+      const values = permissions[field];
+      if (!Array.isArray(values)) return [];
+      const count = values.filter((value) => typeof value !== "string").length;
+      return count > 0 ? [{ layer: layer.name, field, count }] : [];
+    });
+  });
 
 export const entriesForLayers = (layers: Layer[]): PermissionEntry[] =>
   layers
@@ -280,22 +292,22 @@ const renderArrayPreservingLayout = (
   const closingIndentMatch = /\n([ \t]*)$/.exec(inner);
   if (!closingIndentMatch) return JSON.stringify(next);
   const closingIndent = closingIndentMatch[1] ?? "";
-  const elementPattern = /([ \t]*)"((?:\\.|[^"\\])*)"/g;
+  const elementPattern = /([ \t]*)("(?:\\.|[^"\\])*")/g;
   const elementLines = new Map<string, string>();
   let elementIndent: string | undefined;
   for (;;) {
     const match = elementPattern.exec(inner);
     if (!match) break;
-    const [, indent = "", raw = ""] = match;
+    const [, indent = "", quoted = ""] = match;
     if (elementIndent === undefined) elementIndent = indent;
     let value: unknown;
     try {
-      value = JSON.parse(`"${raw}"`);
+      value = JSON.parse(quoted);
     } catch {
       return JSON.stringify(next);
     }
     if (typeof value !== "string") return JSON.stringify(next);
-    elementLines.set(value, `${indent}${JSON.stringify(value)}`);
+    elementLines.set(value, `${indent}${quoted}`);
   }
   if (previous.some((value) => !elementLines.has(value)))
     return JSON.stringify(next);
@@ -347,16 +359,12 @@ const replaceExistingPermissionArrays = (layer: Layer): string | undefined => {
     const nextStrings = next.filter(
       (value): value is string => typeof value === "string",
     );
-    if (
-      previousStrings.length !== previous.length ||
-      nextStrings.length !== next.length
-    )
-      return undefined;
-    const replacement = renderArrayPreservingLayout(
-      rendered.slice(start, end),
-      previousStrings,
-      nextStrings,
-    );
+    const arraySource = rendered.slice(start, end);
+    const replacement =
+      previousStrings.length === previous.length &&
+      nextStrings.length === next.length
+        ? renderArrayPreservingLayout(arraySource, previousStrings, nextStrings)
+        : JSON.stringify(nextStrings);
     rendered = rendered.slice(0, start) + replacement + rendered.slice(end);
   }
   return rendered;

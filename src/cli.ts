@@ -20,6 +20,7 @@ import {
   discoverLayers,
   entriesForLayers,
   type Move,
+  nonStringPermissionValues,
   renderSettings,
   writeLayersAtomically,
 } from "./settings.js";
@@ -53,6 +54,11 @@ const main = async (): Promise<void> => {
   const options = program.opts<{ dryRun?: boolean; list?: boolean }>();
   const layers = discoverLayers(process.cwd());
   formatBrokenLayers(layers).forEach((line) => console.warn(line));
+  for (const item of nonStringPermissionValues(layers)) {
+    console.warn(
+      `[${item.layer}] permissions.${item.field} has ${item.count} non-string value(s) that will be dropped on write.`,
+    );
+  }
   if (options.list === true) {
     formatEntries(entriesForLayers(layers)).forEach((line) =>
       console.log(line),

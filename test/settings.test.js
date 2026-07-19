@@ -17,6 +17,7 @@ import {
   entriesForLayers,
   loadLayer,
   managedSettingsPath,
+  nonStringPermissionValues,
   renderSettings,
   sourceScopesForLayers,
   writeLayersAtomically,
@@ -175,6 +176,111 @@ describe("settings", () => {
     expect(readFileSync(destPath, "utf8")).toBe(
       '{\n  "permissions": {\n    "allow": [\n      "Bash(a)",\n      "Bash(new)",\n      "Bash(z)"\n    ]\n  }\n}\n',
     );
+  });
+
+  it("preserves original escaping of unchanged elements", () => {
+    const directory = mkdtempSync(join(tmpdir(), "move-permission-"));
+    const path = join(directory, "settings.json");
+    const source =
+      '{\n  "permissions": {\n    "allow": [\n      "Bash(\\u0041)",\n      "Bash(drop)"\n    ]\n  }\n}\n';
+    writeFileSync(path, source);
+    const original = loadLayer({
+      name: "user",
+      path,
+      writable: true,
+      exists: false,
+    });
+    const planned = applyMoves(
+      [original],
+      [{ source: { layer: "user", field: "allow", value: "Bash(drop)" } }],
+    );
+    writeLayersAtomically(changedLayers([original], planned));
+    expect(readFileSync(path, "utf8")).toBe(
+      '{\n  "permissions": {\n    "allow": [\n      "Bash(\\u0041)"\n    ]\n  }\n}\n',
+    );
+  });
+
+  it("preserves multi-line layout when removing the last element", () => {
+    const directory = mkdtempSync(join(tmpdir(), "move-permission-"));
+    const path = join(directory, "settings.json");
+    const source =
+      '{\n  "permissions": {\n    "allow": [\n      "Bash(only)"\n    ]\n  }\n}\n';
+    writeFileSync(path, source);
+    const original = loadLayer({
+      name: "user",
+      path,
+      writable: true,
+      exists: false,
+    });
+    const planned = applyMoves(
+      [original],
+      [{ source: { layer: "user", field: "allow", value: "Bash(only)" } }],
+    );
+    writeLayersAtomically(changedLayers([original], planned));
+    expect(readFileSync(path, "utf8")).toBe(
+      '{\n  "permissions": {\n    "allow": [\n    ]\n  }\n}\n',
+    );
+  });
+
+  it("handles escaped quotes and backslashes in element values", () => {
+    const directory = mkdtempSync(join(tmpdir(), "move-permission-"));
+    const path = join(directory, "settings.json");
+    const source =
+      '{\n  "permissions": {\n    "allow": [\n      "Bash(echo \\"x\\")",\n      "Bash(cd C:\\\\tmp)",\n      "Bash(drop)"\n    ]\n  }\n}\n';
+    writeFileSync(path, source);
+    const original = loadLayer({
+      name: "user",
+      path,
+      writable: true,
+      exists: false,
+    });
+    const planned = applyMoves(
+      [original],
+      [{ source: { layer: "user", field: "allow", value: "Bash(drop)" } }],
+    );
+    writeLayersAtomically(changedLayers([original], planned));
+    expect(readFileSync(path, "utf8")).toBe(
+      '{\n  "permissions": {\n    "allow": [\n      "Bash(cd C:\\\\tmp)",\n      "Bash(echo \\"x\\")"\n    ]\n  }\n}\n',
+    );
+  });
+
+  it("collapses only the touched array when it holds non-string values", () => {
+    const directory = mkdtempSync(join(tmpdir(), "move-permission-"));
+    const path = join(directory, "settings.json");
+    const source =
+      '{\n  "permissions": {\n    "allow": [\n      "Bash(keep)",\n      42\n    ],\n    "ask": [\n      "Read(*)"\n    ]\n  }\n}\n';
+    writeFileSync(path, source);
+    const original = loadLayer({
+      name: "user",
+      path,
+      writable: true,
+      exists: false,
+    });
+    const planned = applyMoves(
+      [original],
+      [{ source: { layer: "user", field: "allow", value: "Bash(keep)" } }],
+    );
+    writeLayersAtomically(changedLayers([original], planned));
+    expect(readFileSync(path, "utf8")).toBe(
+      '{\n  "permissions": {\n    "allow": [],\n    "ask": [\n      "Read(*)"\n    ]\n  }\n}\n',
+    );
+  });
+
+  it("reports non-string permission values that would be dropped", () => {
+    const layers = [
+      {
+        name: "user",
+        path: "/tmp/settings.json",
+        writable: true,
+        exists: true,
+        settings: {
+          permissions: { allow: ["Bash(a)", 42, null], ask: ["Read(*)"] },
+        },
+      },
+    ];
+    expect(nonStringPermissionValues(layers)).toEqual([
+      { layer: "user", field: "allow", count: 2 },
+    ]);
   });
 
   it("does not mistake an unrelated allow key for permissions.allow", () => {

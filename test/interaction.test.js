@@ -83,8 +83,7 @@ describe("interactive permission selection", () => {
           path: "/tmp/settings.local.json",
           writable: false,
           exists: true,
-          error:
-            "/tmp/settings.local.json contains invalid JSON: Unexpected token",
+          error: "contains invalid JSON: Unexpected token",
         },
         {
           name: "user",
