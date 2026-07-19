@@ -34,4 +34,4 @@ The command discovers the project root from the current directory and reads `per
 
 Before writing, it previews touched files and asks for confirmation. Every modified settings file is backed up as `<file>.bak.<epoch>`, written through a temporary file, synced, renamed, and parsed again before use.
 
-`managed-settings.json` is included in `--list` output when present but cannot be selected as an interactive source or destination. Interactive entries still note duplicates found in managed settings. Invalid JSON in any accessible settings file stops the command rather than risking an overwrite.
+`managed-settings.json` is included in `--list` output when present but cannot be selected as an interactive source or destination. Interactive entries still note duplicates found in managed settings. A settings file with invalid JSON is reported on stderr and skipped (treated as read-only for this run) so the remaining layers can still be listed and modified.

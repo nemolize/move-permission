@@ -27,6 +27,7 @@ export interface Layer {
   exists: boolean;
   settings?: Settings;
   source?: string;
+  error?: string;
 }
 
 export interface PermissionEntry {
@@ -114,7 +115,18 @@ export const discoverLayers = (
     writable: false,
     exists: false,
   });
-  return layers.map(loadLayer);
+  return layers.map((layer) => {
+    try {
+      return loadLayer(layer);
+    } catch (error) {
+      return {
+        ...layer,
+        exists: true,
+        writable: false,
+        error: error instanceof Error ? error.message : String(error),
+      };
+    }
+  });
 };
 
 export const loadLayer = (layer: Layer): Layer => {
@@ -125,12 +137,24 @@ export const loadLayer = (layer: Layer): Layer => {
     settings = parseSettings(source);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    throw new Error(`${layer.path} contains invalid JSON: ${message}`, {
-      cause: error,
-    });
+    throw new Error(`contains invalid JSON: ${message}`, { cause: error });
   }
   return { ...layer, exists: true, source, settings };
 };
+
+export const nonStringPermissionValues = (
+  layers: Layer[],
+): { layer: LayerName; field: PermissionField; count: number }[] =>
+  layers.flatMap((layer) => {
+    const permissions = layer.settings?.permissions;
+    if (!permissions || typeof permissions !== "object") return [];
+    return permissionFields.flatMap((field) => {
+      const values = permissions[field];
+      if (!Array.isArray(values)) return [];
+      const count = values.filter((value) => typeof value !== "string").length;
+      return count > 0 ? [{ layer: layer.name, field, count }] : [];
+    });
+  });
 
 export const entriesForLayers = (layers: Layer[]): PermissionEntry[] =>
   layers
@@ -258,6 +282,44 @@ const valueEnd = (source: string, start: number): number => {
   throw new Error("Could not find the end of a JSON value");
 };
 
+const renderArrayPreservingLayout = (
+  arraySource: string,
+  previous: string[],
+  next: string[],
+): string => {
+  if (!arraySource.includes("\n")) return JSON.stringify(next);
+  const inner = arraySource.slice(1, -1);
+  const closingIndentMatch = /\n([ \t]*)$/.exec(inner);
+  if (!closingIndentMatch) return JSON.stringify(next);
+  const closingIndent = closingIndentMatch[1] ?? "";
+  const elementPattern = /([ \t]*)("(?:\\.|[^"\\])*")/g;
+  const elementLines = new Map<string, string>();
+  let elementIndent: string | undefined;
+  for (;;) {
+    const match = elementPattern.exec(inner);
+    if (!match) break;
+    const [, indent = "", quoted = ""] = match;
+    if (elementIndent === undefined) elementIndent = indent;
+    let value: unknown;
+    try {
+      value = JSON.parse(quoted);
+    } catch {
+      return JSON.stringify(next);
+    }
+    if (typeof value !== "string") return JSON.stringify(next);
+    elementLines.set(value, `${indent}${quoted}`);
+  }
+  if (previous.some((value) => !elementLines.has(value)))
+    return JSON.stringify(next);
+  const fallbackIndent = elementIndent ?? `${closingIndent}  `;
+  const lines = next.map(
+    (value) =>
+      elementLines.get(value) ?? `${fallbackIndent}${JSON.stringify(value)}`,
+  );
+  if (lines.length === 0) return `[\n${closingIndent}]`;
+  return `[\n${lines.join(",\n")}\n${closingIndent}]`;
+};
+
 const replaceExistingPermissionArrays = (layer: Layer): string | undefined => {
   if (layer.source === undefined || layer.settings === undefined)
     return undefined;
@@ -291,8 +353,19 @@ const replaceExistingPermissionArrays = (layer: Layer): string | undefined => {
     const start = permissionsStart + match.index + match[0].length;
     if (rendered[start] !== "[") return undefined;
     const end = valueEnd(rendered, start);
-    rendered =
-      rendered.slice(0, start) + JSON.stringify(next) + rendered.slice(end);
+    const previousStrings = previous.filter(
+      (value): value is string => typeof value === "string",
+    );
+    const nextStrings = next.filter(
+      (value): value is string => typeof value === "string",
+    );
+    const arraySource = rendered.slice(start, end);
+    const replacement =
+      previousStrings.length === previous.length &&
+      nextStrings.length === next.length
+        ? renderArrayPreservingLayout(arraySource, previousStrings, nextStrings)
+        : JSON.stringify(nextStrings);
+    rendered = rendered.slice(0, start) + replacement + rendered.slice(end);
   }
   return rendered;
 };
