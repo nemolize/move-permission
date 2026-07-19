@@ -10,7 +10,7 @@ import {
 export const formatBrokenLayers = (layers: Layer[]): string[] =>
   layers
     .filter((layer) => layer.error !== undefined)
-    .map((layer) => `[${layer.name}] ${layer.path}: ${layer.error} (skipped)`);
+    .map((layer) => `[${layer.name}] ${layer.error} (skipped)`);
 
 export const formatEntries = (
   entries: PermissionEntry[],

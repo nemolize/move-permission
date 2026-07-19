@@ -83,7 +83,8 @@ describe("interactive permission selection", () => {
           path: "/tmp/settings.local.json",
           writable: false,
           exists: true,
-          error: "invalid JSON: Unexpected token",
+          error:
+            "/tmp/settings.local.json contains invalid JSON: Unexpected token",
         },
         {
           name: "user",
@@ -94,7 +95,7 @@ describe("interactive permission selection", () => {
         },
       ]),
     ).toEqual([
-      "[user-local] /tmp/settings.local.json: invalid JSON: Unexpected token (skipped)",
+      "[user-local] /tmp/settings.local.json contains invalid JSON: Unexpected token (skipped)",
     ]);
   });
 
