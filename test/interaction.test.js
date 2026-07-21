@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import { layerColorizer } from "../src/color.ts";
 import {
   formatBrokenLayers,
   formatEntries,
@@ -96,6 +97,64 @@ describe("interactive permission selection", () => {
     ).toEqual([
       "[user-local] /tmp/settings.local.json contains invalid JSON: Unexpected token (skipped)",
     ]);
+  });
+
+  it("wraps the layer label in ANSI colour when a colorizer is provided", () => {
+    const [line = ""] = formatEntries(
+      [{ layer: "user", field: "allow", value: "Bash(*)" }],
+      { colorize: layerColorizer(true) },
+    );
+    // eslint-disable-next-line no-control-regex
+    expect(line).toMatch(/\x1b\[\d+m\[user\]\x1b\[0m/);
+  });
+
+  it("wraps duplicate-layer notices in ANSI colour when a colorizer is provided", () => {
+    const [line = ""] = formatEntries(
+      [
+        { layer: "user", field: "allow", value: "Bash(x)" },
+        { layer: "project", field: "allow", value: "Bash(x)" },
+      ],
+      { colorize: layerColorizer(true) },
+    );
+    // eslint-disable-next-line no-control-regex
+    expect(line).toMatch(/⚠ also in \x1b\[\d+mproject\x1b\[0m/);
+  });
+
+  it("propagates the colorizer through promptForMoves scope and destination lines", async () => {
+    const answers = ["2", "1", "1"];
+    const output = [];
+    await promptForMoves(
+      [
+        layer("user", { permissions: { allow: ["Bash(*)"] } }),
+        layer("project", { permissions: { ask: ["Read(*)"] } }),
+      ],
+      async () => answers.shift() ?? "",
+      (line) => output.push(line),
+      layerColorizer(true),
+    );
+    const [scopesLine = "", , destinationsLine = ""] = output;
+    /* eslint-disable no-control-regex */
+    expect(scopesLine).toMatch(/\x1b\[\d+muser\x1b\[0m/);
+    expect(scopesLine).toMatch(/\x1b\[\d+mproject\x1b\[0m/);
+    expect(destinationsLine).toMatch(/\x1b\[\d+muser\x1b\[0m/);
+    /* eslint-enable no-control-regex */
+  });
+
+  it("wraps the broken layer label in ANSI colour when a colorizer is provided", () => {
+    const [line = ""] = formatBrokenLayers(
+      [
+        {
+          name: "user-local",
+          path: "/tmp/settings.local.json",
+          writable: false,
+          exists: true,
+          error: "contains invalid JSON: Unexpected token",
+        },
+      ],
+      layerColorizer(true),
+    );
+    // eslint-disable-next-line no-control-regex
+    expect(line).toMatch(/^\x1b\[\d+m\[user-local\]\x1b\[0m /);
   });
 
   it("keeps the unified layer labels used by list mode", () => {
