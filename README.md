@@ -34,4 +34,6 @@ The command discovers the project root from the current directory and reads `per
 
 Before writing, it previews touched files and asks for confirmation. Every modified settings file is backed up as `<file>.bak.<epoch>`, written through a temporary file, synced, renamed, and parsed again before use.
 
+Layer labels in `--list` and interactive prompts are colour-coded when the output stream is a terminal. Set `NO_COLOR=1` (or `FORCE_COLOR=0` / `FORCE_COLOR=false`) to disable, or `FORCE_COLOR=1` to force colour when piping.
+
 `managed-settings.json` is included in `--list` output when present but cannot be selected as an interactive source or destination. Interactive entries still note duplicates found in managed settings. A settings file with invalid JSON is reported on stderr and skipped (treated as read-only for this run) so the remaining layers can still be listed and modified.
