@@ -23,8 +23,10 @@ import {
   type Move,
   nonStringPermissionValues,
   renderSettings,
+  sourceScopesForLayers,
   writeLayersAtomically,
 } from "./settings.js";
+import { runTui } from "./tui.js";
 
 const printPreview = (layers: ReturnType<typeof discoverLayers>): void => {
   console.log("\nPlanned changes:");
@@ -74,17 +76,29 @@ const main = async (): Promise<void> => {
     );
     return;
   }
-  const readline = createInterface({ input, output });
-  let moves: Move[] | undefined;
-  try {
-    moves = await promptForMoves(
-      layers,
-      (prompt) => readline.question(prompt),
-      (line) => console.log(line),
-      colorize,
+  if (sourceScopesForLayers(layers).length === 0) {
+    formatEntries(entriesForLayers(layers), { colorize }).forEach((line) =>
+      console.log(line),
     );
-  } finally {
-    readline.close();
+    return;
+  }
+  const interactive =
+    process.stdin.isTTY === true && process.stdout.isTTY === true;
+  let moves: Move[] | undefined;
+  if (interactive) {
+    moves = await runTui(layers, colorize);
+  } else {
+    const readline = createInterface({ input, output });
+    try {
+      moves = await promptForMoves(
+        layers,
+        (prompt) => readline.question(prompt),
+        (line) => console.log(line),
+        colorize,
+      );
+    } finally {
+      readline.close();
+    }
   }
   if (moves === undefined) return;
   const planned = applyMoves(layers, moves);

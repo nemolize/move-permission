@@ -1,9 +1,10 @@
 import { type LayerColorizer, layerColorizer, layerLabel } from "./color.js";
 import {
+  duplicateLayersByEntry,
   entriesForLayers,
   type Layer,
-  type LayerName,
   type Move,
+  otherLayersFor,
   type PermissionEntry,
   sourceScopesForLayers,
 } from "./settings.js";
@@ -35,27 +36,13 @@ export const formatEntries = (
     colorize = noColor,
   }: FormatEntriesOptions = {},
 ): string[] => {
-  const duplicateLayers = new Map<string, LayerName[]>();
-  for (const entry of allEntries) {
-    const key = `${entry.field}\u0000${entry.value}`;
-    duplicateLayers.set(key, [
-      ...(duplicateLayers.get(key) ?? []),
-      entry.layer,
-    ]);
-  }
   if (entries.length === 0) return ["No permission entries found."];
+  const duplicates = duplicateLayersByEntry(allEntries);
   return entries.map((entry, index) => {
-    const key = `${entry.field}\u0000${entry.value}`;
-    const otherLayers = [
-      ...new Set(
-        (duplicateLayers.get(key) ?? []).filter(
-          (layer) => layer !== entry.layer,
-        ),
-      ),
-    ];
+    const others = otherLayersFor(entry, duplicates);
     const duplicateNotice =
-      otherLayers.length > 0
-        ? ` ⚠ also in ${otherLayers.map((name) => colorize(name)).join(", ")}`
+      others.length > 0
+        ? ` ⚠ also in ${others.map((name) => colorize(name)).join(", ")}`
         : "";
     const prefix = includeLayer ? `${layerLabel(colorize, entry.layer)} ` : "";
     return `${index + 1}. ${prefix}permissions.${entry.field} ${JSON.stringify(entry.value)}${duplicateNotice}`;

@@ -30,7 +30,7 @@ pnpm start -- --list
 pnpm start -- --dry-run
 ```
 
-The command discovers the project root from the current directory and reads `permissions.allow`, `permissions.ask`, and `permissions.deny` from every accessible layer. Interactive runs first prompt for a source scope and then show only entries from that scope. `--list` prints the unified list without modifying settings. Select entries, then move them to a writable destination or delete them.
+The command discovers the project root from the current directory and reads `permissions.allow`, `permissions.ask`, and `permissions.deny` from every accessible layer. On a TTY the interactive run opens a full-screen picker (↑/↓ to move, space to toggle, `a` to toggle all currently visible entries, `/` to filter, Enter to confirm, Esc / `q` to cancel); on a non-TTY stream it falls back to a line-based prompt where entries are selected by comma-separated numbers. `--list` prints the unified list without modifying settings. Select entries, then move them to a writable destination or delete them.
 
 Before writing, it previews touched files and asks for confirmation. Every modified settings file is backed up as `<file>.bak.<epoch>`, written through a temporary file, synced, renamed, and parsed again before use.
 

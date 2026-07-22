@@ -156,6 +156,31 @@ export const nonStringPermissionValues = (
     });
   });
 
+const duplicateKey = (entry: PermissionEntry): string =>
+  `${entry.field}\u0000${entry.value}`;
+
+export const duplicateLayersByEntry = (
+  entries: PermissionEntry[],
+): Map<string, LayerName[]> => {
+  const map = new Map<string, LayerName[]>();
+  for (const entry of entries) {
+    const key = duplicateKey(entry);
+    map.set(key, [...(map.get(key) ?? []), entry.layer]);
+  }
+  return map;
+};
+
+export const otherLayersFor = (
+  entry: PermissionEntry,
+  duplicates: Map<string, LayerName[]>,
+): LayerName[] => [
+  ...new Set(
+    (duplicates.get(duplicateKey(entry)) ?? []).filter(
+      (name) => name !== entry.layer,
+    ),
+  ),
+];
+
 export const entriesForLayers = (layers: Layer[]): PermissionEntry[] =>
   layers
     .flatMap((layer) => {
