@@ -1,4 +1,4 @@
-import { Box, render, Text, useApp, useInput } from "ink";
+import { Box, render, Text, useApp, useInput, useWindowSize } from "ink";
 import { useState } from "react";
 
 import { type LayerColorizer } from "./color.js";
@@ -49,6 +49,20 @@ export type ReducerOutcome =
   | { kind: "done"; moves: Move[] | undefined };
 
 const initialState: TuiState = { kind: "source", scopeIndex: 0 };
+
+export const computeVisibleWindow = (
+  cursor: number,
+  total: number,
+  viewportSize: number,
+): { start: number; end: number } => {
+  if (total <= 0 || viewportSize <= 0) return { start: 0, end: 0 };
+  const size = Math.min(viewportSize, total);
+  const half = Math.floor(size / 2);
+  const rawStart = cursor - half;
+  const maxStart = total - size;
+  const start = Math.max(0, Math.min(rawStart, maxStart));
+  return { start, end: start + size };
+};
 
 export const filterEntries = (
   entries: readonly PermissionEntry[],
@@ -265,7 +279,7 @@ const SourceView = ({
   </Box>
 );
 
-const EntriesView = ({
+export const EntriesView = ({
   entries,
   allEntries,
   cursor,
@@ -273,6 +287,7 @@ const EntriesView = ({
   filter,
   filterMode,
   colorize,
+  viewportRows,
 }: {
   entries: readonly PermissionEntry[];
   allEntries: readonly PermissionEntry[];
@@ -281,9 +296,18 @@ const EntriesView = ({
   filter: string;
   filterMode: boolean;
   colorize: LayerColorizer;
+  viewportRows: number;
 }): React.ReactElement => {
   const visible = filterEntries(entries, filter);
   const duplicates = duplicateLayersByEntry([...allEntries]);
+  const visibleWindow = computeVisibleWindow(
+    cursor,
+    visible.length,
+    viewportRows,
+  );
+  const windowed = visible.slice(visibleWindow.start, visibleWindow.end);
+  const hiddenAbove = visibleWindow.start;
+  const hiddenBelow = Math.max(0, visible.length - visibleWindow.end);
   return (
     <Box flexDirection="column">
       <Text bold>
@@ -298,30 +322,45 @@ const EntriesView = ({
       {visible.length === 0 ? (
         <Text dimColor>No entries match the current filter.</Text>
       ) : (
-        visible.map(({ entry, originalIndex }, visibleIndex) => {
-          const others = otherLayersFor(entry, duplicates);
-          const marker = visibleIndex === cursor ? "▶" : " ";
-          const check = selected.has(originalIndex) ? "◼" : "◻";
-          return (
-            <Text key={`${originalIndex}`}>
-              {marker} {check} permissions.{entry.field}{" "}
-              {JSON.stringify(entry.value)}
-              {others.length > 0 ? (
-                <Text dimColor>
-                  {" ⚠ also in "}
-                  {others.map((name, index) => (
-                    <Text key={name}>
-                      {index > 0 ? ", " : ""}
-                      <Text>{colorize(name)}</Text>
-                    </Text>
-                  ))}
-                </Text>
-              ) : null}
-            </Text>
-          );
-        })
+        <>
+          {hiddenAbove > 0 ? (
+            <Text dimColor>↑ {hiddenAbove} more above</Text>
+          ) : null}
+          {windowed.map(({ entry, originalIndex }, windowIndex) => {
+            const others = otherLayersFor(entry, duplicates);
+            const visibleIndex = visibleWindow.start + windowIndex;
+            const marker = visibleIndex === cursor ? "▶" : " ";
+            const check = selected.has(originalIndex) ? "◼" : "◻";
+            return (
+              <Text key={`${originalIndex}`} wrap="truncate">
+                {marker} {check} permissions.{entry.field}{" "}
+                {JSON.stringify(entry.value)}
+                {others.length > 0 ? (
+                  <Text dimColor>
+                    {" ⚠ also in "}
+                    {others.map((name, index) => (
+                      <Text key={name}>
+                        {index > 0 ? ", " : ""}
+                        <Text>{colorize(name)}</Text>
+                      </Text>
+                    ))}
+                  </Text>
+                ) : null}
+              </Text>
+            );
+          })}
+          {hiddenBelow > 0 ? (
+            <Text dimColor>↓ {hiddenBelow} more below</Text>
+          ) : null}
+        </>
       )}
-      <Text dimColor>{selected.size} selected</Text>
+      <Text dimColor>
+        {
+          visible.filter(({ originalIndex }) => selected.has(originalIndex))
+            .length
+        }{" "}
+        selected · {visible.length} total
+      </Text>
     </Box>
   );
 };
@@ -367,6 +406,10 @@ interface TuiProps {
   onFinish: (moves: Move[] | undefined) => void;
 }
 
+// Rows EntriesView renders around the entry list (title, filter, ↑/↓
+// indicators, footer, margin); keep in sync so the window never overflows.
+const ENTRIES_VIEWPORT_OVERHEAD = 6;
+
 const Tui = ({
   layers,
   colorize,
@@ -376,6 +419,8 @@ const Tui = ({
   const allEntries = entriesForLayers(layers);
   const { exit } = useApp();
   const [state, setState] = useState<TuiState>(initialState);
+  const { rows } = useWindowSize();
+  const viewportRows = Math.max(1, rows - ENTRIES_VIEWPORT_OVERHEAD);
 
   useInput((input, key) => {
     const outcome = reduceTui(state, scopes, { input, key });
@@ -407,6 +452,7 @@ const Tui = ({
         filter={state.filter}
         filterMode={state.filterMode}
         colorize={colorize}
+        viewportRows={viewportRows}
       />
     );
   return (

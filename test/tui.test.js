@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { filterEntries, reduceTui } from "../src/tui.tsx";
+import { computeVisibleWindow, filterEntries, reduceTui } from "../src/tui.tsx";
 
 const scope = (layer, entries, destinations) => ({
   layer,
@@ -42,6 +42,35 @@ const scopes = [
     ["user", "project"],
   ),
 ];
+
+describe("computeVisibleWindow", () => {
+  it("anchors to the top when the cursor sits at the first entry", () => {
+    expect(computeVisibleWindow(0, 1000, 20)).toEqual({ start: 0, end: 20 });
+  });
+
+  it("centres the cursor once it has moved past the middle", () => {
+    expect(computeVisibleWindow(100, 1000, 20)).toEqual({
+      start: 90,
+      end: 110,
+    });
+  });
+
+  it("anchors to the bottom when the cursor nears the last entry", () => {
+    expect(computeVisibleWindow(999, 1000, 20)).toEqual({
+      start: 980,
+      end: 1000,
+    });
+  });
+
+  it("returns the full range when total fits inside the viewport", () => {
+    expect(computeVisibleWindow(2, 5, 20)).toEqual({ start: 0, end: 5 });
+  });
+
+  it("returns an empty window when there is nothing to show", () => {
+    expect(computeVisibleWindow(0, 0, 20)).toEqual({ start: 0, end: 0 });
+    expect(computeVisibleWindow(0, 10, 0)).toEqual({ start: 0, end: 0 });
+  });
+});
 
 describe("filterEntries", () => {
   it("preserves the original index regardless of filter", () => {

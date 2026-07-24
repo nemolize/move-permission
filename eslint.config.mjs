@@ -41,7 +41,7 @@ export default tseslint.config(
     },
   },
   {
-    files: ["test/**/*.test.js"],
+    files: ["test/**/*.test.{js,jsx}"],
     languageOptions: { globals: globals.vitest },
   },
 );
