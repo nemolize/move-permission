@@ -300,10 +300,14 @@ export const EntriesView = ({
 }): React.ReactElement => {
   const visible = filterEntries(entries, filter);
   const duplicates = duplicateLayersByEntry([...allEntries]);
-  const window = computeVisibleWindow(cursor, visible.length, viewportRows);
-  const windowed = visible.slice(window.start, window.end);
-  const hiddenAbove = window.start;
-  const hiddenBelow = Math.max(0, visible.length - window.end);
+  const visibleWindow = computeVisibleWindow(
+    cursor,
+    visible.length,
+    viewportRows,
+  );
+  const windowed = visible.slice(visibleWindow.start, visibleWindow.end);
+  const hiddenAbove = visibleWindow.start;
+  const hiddenBelow = Math.max(0, visible.length - visibleWindow.end);
   return (
     <Box flexDirection="column">
       <Text bold>
@@ -324,11 +328,11 @@ export const EntriesView = ({
           ) : null}
           {windowed.map(({ entry, originalIndex }, windowIndex) => {
             const others = otherLayersFor(entry, duplicates);
-            const visibleIndex = window.start + windowIndex;
+            const visibleIndex = visibleWindow.start + windowIndex;
             const marker = visibleIndex === cursor ? "▶" : " ";
             const check = selected.has(originalIndex) ? "◼" : "◻";
             return (
-              <Text key={`${originalIndex}`}>
+              <Text key={`${originalIndex}`} wrap="truncate">
                 {marker} {check} permissions.{entry.field}{" "}
                 {JSON.stringify(entry.value)}
                 {others.length > 0 ? (
@@ -351,7 +355,11 @@ export const EntriesView = ({
         </>
       )}
       <Text dimColor>
-        {selected.size} selected · {visible.length} total
+        {
+          visible.filter(({ originalIndex }) => selected.has(originalIndex))
+            .length
+        }{" "}
+        selected · {visible.length} total
       </Text>
     </Box>
   );
@@ -398,6 +406,8 @@ interface TuiProps {
   onFinish: (moves: Move[] | undefined) => void;
 }
 
+// Rows EntriesView renders around the entry list (title, filter, ↑/↓
+// indicators, footer, margin); keep in sync so the window never overflows.
 const ENTRIES_VIEWPORT_OVERHEAD = 6;
 
 const Tui = ({

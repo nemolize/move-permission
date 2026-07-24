@@ -36,6 +36,24 @@ const renderFrame = (cursor, total, viewportRows, selected = new Set()) => {
 const cursorLine = (frame) =>
   frame.split("\n").find((line) => line.startsWith("▶")) ?? "";
 
+const renderCustom = ({ entries, cursor, selected, filter, viewportRows }) => {
+  const { lastFrame, unmount } = render(
+    <EntriesView
+      entries={entries}
+      allEntries={entries}
+      cursor={cursor}
+      selected={selected}
+      filter={filter}
+      filterMode={false}
+      colorize={colorize}
+      viewportRows={viewportRows}
+    />,
+  );
+  const frame = lastFrame() ?? "";
+  unmount();
+  return frame;
+};
+
 describe("EntriesView viewport rendering", () => {
   it("keeps the cursor visible and anchors to the top when it sits on the first entry", () => {
     const frame = renderFrame(0, 1000, 20);
@@ -73,5 +91,38 @@ describe("EntriesView viewport rendering", () => {
     const frame = renderFrame(0, 1000, 20, new Set([0, 5, 10]));
     expect(frame).toContain('▶ ◼ permissions.allow "Bash(cmd-0)"');
     expect(frame).toContain("3 selected · 1000 total");
+  });
+
+  it("counts only visible entries as selected so the footer stays consistent under a filter", () => {
+    const entries = makeEntries(10);
+    const frame = renderCustom({
+      entries,
+      cursor: 0,
+      selected: new Set([0, 1]),
+      filter: "cmd-1",
+      viewportRows: 20,
+    });
+    // Only cmd-1 matches the filter; cmd-0 is selected but hidden, so it must
+    // not be counted — the footer would otherwise read "2 selected · 1 total".
+    expect(frame).toContain("1 selected · 1 total");
+  });
+
+  it("truncates a long entry to a single line so the row budget is not exceeded", () => {
+    const entries = [
+      { layer: "user", field: "allow", value: `Bash(${"x".repeat(300)})` },
+    ];
+    const frame = renderCustom({
+      entries,
+      cursor: 0,
+      selected: new Set(),
+      filter: "",
+      viewportRows: 20,
+    });
+    // Without truncation the 300-char value wraps across multiple terminal
+    // rows, breaking the one-row-per-entry assumption viewportRows relies on.
+    const wrappedLines = frame
+      .split("\n")
+      .filter((line) => line.includes("xxx"));
+    expect(wrappedLines).toHaveLength(1);
   });
 });
