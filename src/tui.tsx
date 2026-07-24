@@ -279,7 +279,7 @@ const SourceView = ({
   </Box>
 );
 
-const EntriesView = ({
+export const EntriesView = ({
   entries,
   allEntries,
   cursor,
