@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process";
 import {
   mkdirSync,
   mkdtempSync,
@@ -19,6 +20,7 @@ import {
   managedSettingsPath,
   nonStringPermissionValues,
   renderSettings,
+  sourceLayerNames,
   sourceScopesForLayers,
   writeLayersAtomically,
 } from "../src/settings.ts";
@@ -383,15 +385,53 @@ describe("settings", () => {
 
     const scopes = sourceScopesForLayers([user, project, managed]);
 
-    expect(scopes.map((scope) => scope.layer)).toEqual(["user", "project"]);
+    expect(scopes.map((scope) => scope.layer)).toEqual(["project"]);
     expect(scopes[0]).toMatchObject({
-      entries: [{ layer: "user", field: "allow", value: "Bash(*)" }],
-      destinations: ["project"],
-    });
-    expect(scopes[1]).toMatchObject({
       entries: [{ layer: "project", field: "ask", value: "Read(*)" }],
       destinations: ["user"],
     });
+  });
+
+  it("offers only project layers as sources, keeping user layers as destinations", () => {
+    const user = layer("user", "/tmp/settings.json", {
+      permissions: { allow: ["Bash(user)"] },
+    });
+    const userLocal = layer("user-local", "/tmp/settings.local.json", {
+      permissions: { allow: ["Bash(user-local)"] },
+    });
+    const project = layer("project", "/tmp/project-settings.json", {
+      permissions: { allow: ["Bash(project)"] },
+    });
+    const projectLocal = layer(
+      "project-local",
+      "/tmp/project-settings.local.json",
+      { permissions: { allow: ["Bash(project-local)"] } },
+    );
+
+    const scopes = sourceScopesForLayers([
+      user,
+      userLocal,
+      project,
+      projectLocal,
+    ]);
+
+    expect(scopes.map((scope) => scope.layer)).toEqual([...sourceLayerNames]);
+    expect(scopes[0]?.destinations).toEqual([
+      "user",
+      "user-local",
+      "project-local",
+    ]);
+  });
+
+  it("yields no source scopes when only user layers hold entries", () => {
+    const user = layer("user", "/tmp/settings.json", {
+      permissions: { allow: ["Bash(*)"] },
+    });
+    const userLocal = layer("user-local", "/tmp/settings.local.json", {
+      permissions: { deny: ["WebFetch(*)"] },
+    });
+
+    expect(sourceScopesForLayers([user, userLocal])).toEqual([]);
   });
 
   it("rejects moves from a read-only source layer", () => {
@@ -415,7 +455,14 @@ describe("settings", () => {
       join(home, ".claude", "settings.local.json"),
       '{"permissions":{"allow":["Bash(ok)"]}}',
     );
-    const layers = discoverLayers("/", home);
+    const project = mkdtempSync(join(tmpdir(), "move-permission-project-"));
+    execFileSync("git", ["init", "--quiet", project]);
+    mkdirSync(join(project, ".claude"), { recursive: true });
+    writeFileSync(
+      join(project, ".claude", "settings.json"),
+      '{"permissions":{"allow":["Bash(project-ok)"]}}',
+    );
+    const layers = discoverLayers(project, home);
     const user = layers.find((layer) => layer.name === "user");
     const userLocal = layers.find((layer) => layer.name === "user-local");
     expect(user?.error).toMatch(/invalid JSON/);
@@ -423,8 +470,9 @@ describe("settings", () => {
     expect(userLocal?.settings).toEqual({
       permissions: { allow: ["Bash(ok)"] },
     });
+    // The broken user layer must not stop the remaining layers being usable.
     expect(sourceScopesForLayers(layers).map((scope) => scope.layer)).toEqual([
-      "user-local",
+      "project",
     ]);
   });
 

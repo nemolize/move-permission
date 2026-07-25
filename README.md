@@ -36,4 +36,6 @@ Before writing, it previews touched files and asks for confirmation. Every modif
 
 Layer labels in `--list` and interactive prompts are colour-coded when the output stream is a terminal. Set `NO_COLOR=1` (or `FORCE_COLOR=0` / `FORCE_COLOR=false`) to disable, or `FORCE_COLOR=1` to force colour when piping.
 
+Only the `project` and `project-local` layers can be selected as a move source. User-level entries are still listed and remain available as destinations, so entries can be pushed up from a project layer to `user` or `user-local`, but not moved out of them. When no project layer holds any entry, the run prints the unified list and exits without prompting.
+
 `managed-settings.json` is included in `--list` output when present but cannot be selected as an interactive source or destination. Interactive entries still note duplicates found in managed settings. A settings file with invalid JSON is reported on stderr and skipped (treated as read-only for this run) so the remaining layers can still be listed and modified.
