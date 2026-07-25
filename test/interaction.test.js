@@ -23,6 +23,7 @@ describe("interactive permission selection", () => {
     const moves = await promptForMoves(
       [
         layer("user", { permissions: { allow: ["Bash(*)"] } }),
+        layer("project-local", { permissions: { allow: ["Bash(*)"] } }),
         layer("project", { permissions: { ask: ["Read(*)"] } }),
         layer("managed", { permissions: { ask: ["Read(*)"] } }, false),
       ],
@@ -39,9 +40,9 @@ describe("interactive permission selection", () => {
       "Choose destination: ",
     ]);
     expect(output).toEqual([
-      "From scopes: 1. user (1 entries)  2. project (1 entries)",
+      "From scopes: 1. project-local (1 entries)  2. project (1 entries)",
       '1. permissions.ask "Read(*)" ⚠ also in managed',
-      "Destinations: 1. user  0. delete",
+      "Destinations: 1. user  2. project-local  0. delete",
     ]);
     expect(moves).toEqual([
       {
@@ -54,20 +55,23 @@ describe("interactive permission selection", () => {
   it("cancels before displaying entries when no source is selected", async () => {
     const output = [];
     const moves = await promptForMoves(
-      [layer("user", { permissions: { allow: ["Bash(*)"] } })],
+      [layer("project", { permissions: { allow: ["Bash(*)"] } })],
       async () => "",
       (line) => output.push(line),
     );
 
     expect(moves).toBeUndefined();
-    expect(output).toEqual(["From scopes: 1. user (1 entries)", "Cancelled."]);
+    expect(output).toEqual([
+      "From scopes: 1. project (1 entries)",
+      "Cancelled.",
+    ]);
   });
 
   it("cancels instead of treating a blank destination as delete", async () => {
     const answers = ["1", "1", ""];
     const output = [];
     const moves = await promptForMoves(
-      [layer("user", { permissions: { allow: ["Bash(*)"] } })],
+      [layer("project", { permissions: { allow: ["Bash(*)"] } })],
       async () => answers.shift() ?? "",
       (line) => output.push(line),
     );
@@ -126,6 +130,7 @@ describe("interactive permission selection", () => {
     await promptForMoves(
       [
         layer("user", { permissions: { allow: ["Bash(*)"] } }),
+        layer("project-local", { permissions: { allow: ["Bash(*)"] } }),
         layer("project", { permissions: { ask: ["Read(*)"] } }),
       ],
       async () => answers.shift() ?? "",
@@ -134,7 +139,7 @@ describe("interactive permission selection", () => {
     );
     const [scopesLine = "", , destinationsLine = ""] = output;
     /* eslint-disable no-control-regex */
-    expect(scopesLine).toMatch(/\x1b\[\d+muser\x1b\[0m/);
+    expect(scopesLine).toMatch(/\x1b\[\d+mproject-local\x1b\[0m/);
     expect(scopesLine).toMatch(/\x1b\[\d+mproject\x1b\[0m/);
     expect(destinationsLine).toMatch(/\x1b\[\d+muser\x1b\[0m/);
     /* eslint-enable no-control-regex */

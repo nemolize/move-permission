@@ -383,15 +383,56 @@ describe("settings", () => {
 
     const scopes = sourceScopesForLayers([user, project, managed]);
 
-    expect(scopes.map((scope) => scope.layer)).toEqual(["user", "project"]);
+    expect(scopes.map((scope) => scope.layer)).toEqual(["project"]);
     expect(scopes[0]).toMatchObject({
-      entries: [{ layer: "user", field: "allow", value: "Bash(*)" }],
-      destinations: ["project"],
-    });
-    expect(scopes[1]).toMatchObject({
       entries: [{ layer: "project", field: "ask", value: "Read(*)" }],
       destinations: ["user"],
     });
+  });
+
+  it("offers only project layers as sources, keeping user layers as destinations", () => {
+    const user = layer("user", "/tmp/settings.json", {
+      permissions: { allow: ["Bash(user)"] },
+    });
+    const userLocal = layer("user-local", "/tmp/settings.local.json", {
+      permissions: { allow: ["Bash(user-local)"] },
+    });
+    const project = layer("project", "/tmp/project-settings.json", {
+      permissions: { allow: ["Bash(project)"] },
+    });
+    const projectLocal = layer(
+      "project-local",
+      "/tmp/project-settings.local.json",
+      { permissions: { allow: ["Bash(project-local)"] } },
+    );
+
+    const scopes = sourceScopesForLayers([
+      user,
+      userLocal,
+      project,
+      projectLocal,
+    ]);
+
+    expect(scopes.map((scope) => scope.layer)).toEqual([
+      "project",
+      "project-local",
+    ]);
+    expect(scopes[0]?.destinations).toEqual([
+      "user",
+      "user-local",
+      "project-local",
+    ]);
+  });
+
+  it("yields no source scopes when only user layers hold entries", () => {
+    const user = layer("user", "/tmp/settings.json", {
+      permissions: { allow: ["Bash(*)"] },
+    });
+    const userLocal = layer("user-local", "/tmp/settings.local.json", {
+      permissions: { deny: ["WebFetch(*)"] },
+    });
+
+    expect(sourceScopesForLayers([user, userLocal])).toEqual([]);
   });
 
   it("rejects moves from a read-only source layer", () => {
@@ -423,9 +464,7 @@ describe("settings", () => {
     expect(userLocal?.settings).toEqual({
       permissions: { allow: ["Bash(ok)"] },
     });
-    expect(sourceScopesForLayers(layers).map((scope) => scope.layer)).toEqual([
-      "user-local",
-    ]);
+    expect(sourceScopesForLayers(layers)).toEqual([]);
   });
 
   it("uses the platform-specific managed settings path", () => {

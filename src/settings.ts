@@ -201,13 +201,22 @@ export const entriesForLayers = (layers: Layer[]): PermissionEntry[] =>
         a.layer.localeCompare(b.layer),
     );
 
+export const sourceLayerNames: readonly LayerName[] = [
+  "project",
+  "project-local",
+];
+
+const isSourceLayer = (name: LayerName): boolean =>
+  sourceLayerNames.includes(name);
+
 export const sourceScopesForLayers = (layers: Layer[]): SourceScope[] => {
   const writableLayerNames = layers
     .filter((layer) => layer.writable)
     .map((layer) => layer.name);
   return layers.flatMap((layer) => {
     const entries = entriesForLayers([layer]);
-    if (!layer.writable || entries.length === 0) return [];
+    if (!layer.writable || !isSourceLayer(layer.name) || entries.length === 0)
+      return [];
     return [
       {
         layer: layer.name,
