@@ -52,7 +52,7 @@ describe("interactive permission selection", () => {
     ]);
   });
 
-  it("lists every entry without prompting when no project layer holds one", async () => {
+  it("reports nothing movable without prompting or listing user entries", async () => {
     const output = [];
     const moves = await promptForMoves(
       [
@@ -67,8 +67,8 @@ describe("interactive permission selection", () => {
 
     expect(moves).toBeUndefined();
     expect(output).toEqual([
-      '1. [user] permissions.allow "Bash(user)"',
-      '2. [user-local] permissions.deny "WebFetch(*)"',
+      "No permission entries in project or project-local settings to move.",
+      "Run --list to see the entries in every layer.",
     ]);
   });
 

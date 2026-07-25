@@ -8,6 +8,7 @@ import { layerColorizer, layerLabel, shouldColorize } from "./color.js";
 import {
   formatBrokenLayers,
   formatEntries,
+  noMovableEntriesLines,
   promptForMoves,
 } from "./interaction.js";
 import {
@@ -77,9 +78,7 @@ const main = async (): Promise<void> => {
     return;
   }
   if (sourceScopesForLayers(layers).length === 0) {
-    formatEntries(entriesForLayers(layers), { colorize }).forEach((line) =>
-      console.log(line),
-    );
+    noMovableEntriesLines().forEach((line) => console.log(line));
     return;
   }
   const interactive =
