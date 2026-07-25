@@ -6,6 +6,7 @@ import {
   type Move,
   otherLayersFor,
   type PermissionEntry,
+  sourceLayerNames,
   sourceScopesForLayers,
 } from "./settings.js";
 
@@ -49,6 +50,11 @@ export const formatEntries = (
   });
 };
 
+export const noMovableEntriesLines = (): string[] => [
+  `No permission entries in ${sourceLayerNames.join(" or ")} settings to move.`,
+  "Run --list to see the entries in every layer.",
+];
+
 export const promptForMoves = async (
   layers: Layer[],
   question: (prompt: string) => Promise<string>,
@@ -58,7 +64,7 @@ export const promptForMoves = async (
   const allEntries = entriesForLayers(layers);
   const sourceScopes = sourceScopesForLayers(layers);
   if (sourceScopes.length === 0) {
-    formatEntries(allEntries, { colorize }).forEach(writeLine);
+    noMovableEntriesLines().forEach(writeLine);
     return undefined;
   }
   writeLine(
