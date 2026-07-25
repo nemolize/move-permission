@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process";
 import {
   mkdirSync,
   mkdtempSync,
@@ -19,6 +20,7 @@ import {
   managedSettingsPath,
   nonStringPermissionValues,
   renderSettings,
+  sourceLayerNames,
   sourceScopesForLayers,
   writeLayersAtomically,
 } from "../src/settings.ts";
@@ -413,10 +415,7 @@ describe("settings", () => {
       projectLocal,
     ]);
 
-    expect(scopes.map((scope) => scope.layer)).toEqual([
-      "project",
-      "project-local",
-    ]);
+    expect(scopes.map((scope) => scope.layer)).toEqual([...sourceLayerNames]);
     expect(scopes[0]?.destinations).toEqual([
       "user",
       "user-local",
@@ -456,7 +455,14 @@ describe("settings", () => {
       join(home, ".claude", "settings.local.json"),
       '{"permissions":{"allow":["Bash(ok)"]}}',
     );
-    const layers = discoverLayers("/", home);
+    const project = mkdtempSync(join(tmpdir(), "move-permission-project-"));
+    execFileSync("git", ["init", "--quiet", project]);
+    mkdirSync(join(project, ".claude"), { recursive: true });
+    writeFileSync(
+      join(project, ".claude", "settings.json"),
+      '{"permissions":{"allow":["Bash(project-ok)"]}}',
+    );
+    const layers = discoverLayers(project, home);
     const user = layers.find((layer) => layer.name === "user");
     const userLocal = layers.find((layer) => layer.name === "user-local");
     expect(user?.error).toMatch(/invalid JSON/);
@@ -464,7 +470,10 @@ describe("settings", () => {
     expect(userLocal?.settings).toEqual({
       permissions: { allow: ["Bash(ok)"] },
     });
-    expect(sourceScopesForLayers(layers)).toEqual([]);
+    // The broken user layer must not stop the remaining layers being usable.
+    expect(sourceScopesForLayers(layers).map((scope) => scope.layer)).toEqual([
+      "project",
+    ]);
   });
 
   it("uses the platform-specific managed settings path", () => {

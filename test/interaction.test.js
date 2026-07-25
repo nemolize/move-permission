@@ -52,6 +52,26 @@ describe("interactive permission selection", () => {
     ]);
   });
 
+  it("lists every entry without prompting when no project layer holds one", async () => {
+    const output = [];
+    const moves = await promptForMoves(
+      [
+        layer("user", { permissions: { allow: ["Bash(user)"] } }),
+        layer("user-local", { permissions: { deny: ["WebFetch(*)"] } }),
+      ],
+      async () => {
+        throw new Error("must not prompt when there is no selectable source");
+      },
+      (line) => output.push(line),
+    );
+
+    expect(moves).toBeUndefined();
+    expect(output).toEqual([
+      '1. [user] permissions.allow "Bash(user)"',
+      '2. [user-local] permissions.deny "WebFetch(*)"',
+    ]);
+  });
+
   it("cancels before displaying entries when no source is selected", async () => {
     const output = [];
     const moves = await promptForMoves(
