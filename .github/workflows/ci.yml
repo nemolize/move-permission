@@ -18,7 +18,7 @@ jobs:
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
       - uses: ./.github/actions/setup
-      - run: pnpm lint
+      - run: pnpm run lint
 
   Test:
     runs-on: ubuntu-24.04
@@ -27,4 +27,4 @@ jobs:
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
       - uses: ./.github/actions/setup
-      - run: pnpm test
+      - run: pnpm run test

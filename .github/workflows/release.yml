@@ -1,0 +1,108 @@
+name: Release
+
+# Trusted publishing can only be set up AFTER a first manual `pnpm publish` —
+# npm attaches a publisher only to a package that already exists.
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+# Keep the npm comparison and both release mutations in one serialized queue.
+concurrency:
+  group: release
+  queue: max
+
+permissions:
+  contents: read
+
+jobs:
+  Release:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write # create the GitHub Release
+      id-token: write # request the OIDC token for npm Trusted Publishing
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          persist-credentials: false
+
+      - uses: ./.github/actions/setup
+
+      - name: Verify tag matches package.json version
+        run: |
+          tag="${GITHUB_REF_NAME#v}"
+          pkg="$(node -p "require('./package.json').version")"
+          if [ "$tag" != "$pkg" ]; then
+            echo "::error::tag v$tag does not match package.json version $pkg"
+            exit 1
+          fi
+          echo "tag and package.json agree on $pkg"
+
+      # A tag push bypasses ci.yml entirely, so re-run its checks here.
+      - name: Lint
+        run: pnpm run lint
+
+      - name: Test
+        run: pnpm run test
+
+      - name: Build
+        run: pnpm run build
+
+      # Prereleases skip the lookup — they never take `latest`. Only E404
+      # (unpublished) may fall through as empty; any other npm error must fail
+      # rather than silently classify a backport as `latest`.
+      - name: Classify release
+        id: classify
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          latest_version=""
+          if [[ "$version" != *-* ]]; then
+            name="$(node -p "require('./package.json').name")"
+            if ! latest_version="$(npm view "$name" dist-tags.latest 2>"$RUNNER_TEMP/npm-view.err")"; then
+              if grep -q 'E404' "$RUNNER_TEMP/npm-view.err"; then
+                latest_version=""
+              else
+                echo "::error::npm view failed for $name: $(cat "$RUNNER_TEMP/npm-view.err")"
+                exit 1
+              fi
+            fi
+          fi
+          node .github/scripts/classify-release.mjs \
+            "$version" "$latest_version" >>"$GITHUB_OUTPUT"
+
+      # Idempotent so a re-run after a failed Release step doesn't hit npm's
+      # republish block. Only E404 means unpublished.
+      - name: Publish to npm (Trusted Publishing / OIDC)
+        run: |
+          spec="$(node -p "require('./package.json').name")@${GITHUB_REF_NAME#v}"
+          if err="$(npm view "$spec" version 2>&1 >/dev/null)"; then
+            echo "$spec already published — skipping"
+          elif grep -q 'E404' <<<"$err"; then
+            pnpm publish --provenance --no-git-checks --tag "${{ steps.classify.outputs.npm_tag }}"
+          else
+            echo "::error::npm view failed for $spec: $err"
+            exit 1
+          fi
+
+      # --verify-tag: without it a deleted tag is recreated off the default
+      # branch, pointing the Release at code npm never published.
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          case "${{ steps.classify.outputs.kind }}" in
+            prerelease) flag=(--prerelease) ;;
+            backport) flag=(--latest=false) ;;
+            latest) flag=() ;;
+            *) echo "::error::unknown release kind: ${{ steps.classify.outputs.kind }}"; exit 1 ;;
+          esac
+          if err="$(gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" 2>&1 >/dev/null)"; then
+            echo "release $GITHUB_REF_NAME already exists — skipping"
+          elif grep -qi 'release not found' <<<"$err"; then
+            gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" \
+              --title "$GITHUB_REF_NAME" --generate-notes --verify-tag "${flag[@]}"
+          else
+            echo "::error::gh release view failed for $GITHUB_REF_NAME: $err"
+            exit 1
+          fi

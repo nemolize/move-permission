@@ -2,6 +2,26 @@
   "name": "move-permission",
   "version": "0.1.0",
   "description": "Move Claude Code permission entries between settings layers",
+  "license": "MIT",
+  "author": {
+    "name": "Masaru Nemoto",
+    "url": "https://github.com/nemolize"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/nemolize/move-permission.git"
+  },
+  "bugs": {
+    "url": "https://github.com/nemolize/move-permission/issues"
+  },
+  "homepage": "https://github.com/nemolize/move-permission#readme",
+  "keywords": [
+    "claude",
+    "claude-code",
+    "permissions",
+    "settings",
+    "cli"
+  ],
   "type": "module",
   "bin": {
     "move-permission": "./dist/cli.js"
@@ -15,7 +35,6 @@
   "packageManager": "pnpm@11.11.0",
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "prepack": "tsc -p tsconfig.json",
     "start": "node dist/cli.js",
     "lint": "run-p --continue-on-error \"lint:*\"",
     "lint:eslint": "eslint .",
@@ -41,6 +60,7 @@
     "ink-testing-library": "^4.0.0",
     "npm-run-all2": "^9.0.0",
     "prettier": "^3.8.3",
+    "semver": "^7.8.5",
     "typescript": "^6.0.3",
     "typescript-eslint": "^8.59.1",
     "vitest": "^4.1.10"
