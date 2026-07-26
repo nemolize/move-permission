@@ -1,7 +1,15 @@
 name: Release
 
 # npm auth via OIDC Trusted Publishing — no NPM_TOKEN secret.
-# Setup prerequisites: see the Releasing section in README.md.
+#
+# One-time setup, in this order (npm attaches a trusted publisher only to a
+# package that already exists — there is no pending-publisher mechanism):
+#   1. pnpm run build && pnpm publish        # with a granular token
+#   2. npm trust github move-permission --file release.yml \
+#        --repo nemolize/move-permission     # npm >= 11.10, needs 2FA
+#
+# Tag the first release as stable (v0.1.0, not v0.1.0-beta.0): a prerelease
+# tag publishes under `next`, leaving the package with no `latest`.
 on:
   push:
     tags:
