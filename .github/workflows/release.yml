@@ -49,9 +49,9 @@ jobs:
       - name: Build
         run: pnpm run build
 
-      # Prereleases use `next`. A stable tag older than npm's current `latest`
-      # is a backport and must not move `latest` or GitHub's Latest release
-      # backwards. An unpublished package has no `latest` to compare against.
+      # Prereleases skip the lookup — they never take `latest`. Only E404
+      # (unpublished) may fall through as empty; any other npm error must fail
+      # rather than silently classify a backport as `latest`.
       - name: Classify release
         id: classify
         run: |
@@ -59,7 +59,14 @@ jobs:
           latest_version=""
           if [[ "$version" != *-* ]]; then
             name="$(node -p "require('./package.json').name")"
-            latest_version="$(npm view "$name" dist-tags.latest 2>/dev/null || true)"
+            if ! latest_version="$(npm view "$name" dist-tags.latest 2>"$RUNNER_TEMP/npm-view.err")"; then
+              if grep -q 'E404' "$RUNNER_TEMP/npm-view.err"; then
+                latest_version=""
+              else
+                echo "::error::npm view failed for $name: $(cat "$RUNNER_TEMP/npm-view.err")"
+                exit 1
+              fi
+            fi
           fi
           node .github/scripts/classify-release.mjs \
             "$version" "$latest_version" >>"$GITHUB_OUTPUT"
@@ -87,7 +94,8 @@ jobs:
           case "${{ steps.classify.outputs.kind }}" in
             prerelease) flag=(--prerelease) ;;
             backport) flag=(--latest=false) ;;
-            *) flag=() ;;
+            latest) flag=() ;;
+            *) echo "::error::unknown release kind: ${{ steps.classify.outputs.kind }}"; exit 1 ;;
           esac
           if err="$(gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" 2>&1 >/dev/null)"; then
             echo "release $GITHUB_REF_NAME already exists — skipping"

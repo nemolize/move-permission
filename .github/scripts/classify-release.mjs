@@ -3,9 +3,8 @@ import { pathToFileURL } from "node:url";
 import { lt, prerelease, valid } from "semver";
 
 /**
- * Decides how a release version should be tagged, given npm's current
- * `latest`. Pass an empty `latestVersion` when the package has no `latest`
- * yet (first publish) or the version is a prerelease.
+ * Decides how a release version should be tagged. An empty `latestVersion`
+ * means the package has no `latest` dist-tag to compare against.
  *
  * Returns a `kind` of `prerelease` | `backport` | `latest` — the caller maps
  * it to CLI flags.
