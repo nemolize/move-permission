@@ -1,0 +1,86 @@
+name: Release
+
+# npm auth via OIDC Trusted Publishing — no NPM_TOKEN secret.
+# Setup prerequisites: see the Releasing section in README.md.
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+permissions:
+  contents: read
+
+jobs:
+  Release:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write # create the GitHub Release
+      id-token: write # request the OIDC token for npm Trusted Publishing
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          persist-credentials: false
+
+      - name: Verify tag matches package.json version
+        run: |
+          tag="${GITHUB_REF_NAME#v}"
+          pkg="$(node -p "require('./package.json').version")"
+          if [ "$tag" != "$pkg" ]; then
+            echo "::error::tag v$tag does not match package.json version $pkg"
+            exit 1
+          fi
+          echo "tag and package.json agree on $pkg"
+
+      - uses: ./.github/actions/setup
+
+      # Re-run the CI checks: a tag push bypasses ci.yml entirely.
+      - name: Lint
+        run: pnpm run lint
+
+      - name: Build
+        run: pnpm run build
+
+      - name: Run unit tests
+        run: pnpm run test
+
+      # A prerelease tag (v1.2.3-beta.0) must not become the `latest` dist-tag
+      # nor a non-prerelease GitHub Release.
+      - name: Classify release
+        id: classify
+        run: |
+          if [[ "$GITHUB_REF_NAME" == *-* ]]; then
+            echo "npm_tag=next" >>"$GITHUB_OUTPUT"
+            echo "prerelease=true" >>"$GITHUB_OUTPUT"
+          else
+            echo "npm_tag=latest" >>"$GITHUB_OUTPUT"
+            echo "prerelease=false" >>"$GITHUB_OUTPUT"
+          fi
+
+      # Idempotent: a re-run after a partial failure (publish succeeded but the
+      # Release step failed) skips the already-published version instead of
+      # dying on npm's republish block. dist/ comes from the Build step above.
+      # Only E404 means "not yet published" — any other npm error fails the step
+      # rather than silently falling through to a republish attempt.
+      - name: Publish to npm (Trusted Publishing / OIDC)
+        run: |
+          spec="$(node -p "require('./package.json').name")@${GITHUB_REF_NAME#v}"
+          if err="$(npm view "$spec" version 2>&1 >/dev/null)"; then
+            echo "$spec already published — skipping"
+          elif grep -q 'E404' <<<"$err"; then
+            pnpm publish --provenance --no-git-checks --tag "${{ steps.classify.outputs.npm_tag }}"
+          else
+            echo "::error::npm view failed for $spec: $err"
+            exit 1
+          fi
+
+      # Idempotent + --verify-tag: never recreate a deleted tag off the default
+      # branch (which would point the Release at code npm never published).
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1 \
+            || gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" \
+              --title "$GITHUB_REF_NAME" --generate-notes --verify-tag \
+              --prerelease=${{ steps.classify.outputs.prerelease }}
