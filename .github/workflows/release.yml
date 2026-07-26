@@ -1,15 +1,7 @@
 name: Release
 
-# npm auth via OIDC Trusted Publishing — no NPM_TOKEN secret.
-#
-# One-time setup, in this order (npm attaches a trusted publisher only to a
-# package that already exists — there is no pending-publisher mechanism):
-#   1. pnpm run build && pnpm publish        # with a granular token
-#   2. npm trust github move-permission --file release.yml \
-#        --repo nemolize/move-permission     # npm >= 11.10, needs 2FA
-#
-# Tag the first release as stable (v0.1.0, not v0.1.0-beta.0): a prerelease
-# tag publishes under `next`, leaving the package with no `latest`.
+# Trusted publishing can only be set up AFTER a first manual `pnpm publish` —
+# npm attaches a publisher only to a package that already exists.
 on:
   push:
     tags:
@@ -52,8 +44,6 @@ jobs:
       - name: Run unit tests
         run: pnpm run test
 
-      # A prerelease tag (v1.2.3-beta.0) must not become the `latest` dist-tag
-      # nor a non-prerelease GitHub Release.
       - name: Classify release
         id: classify
         run: |
@@ -65,11 +55,9 @@ jobs:
             echo "prerelease=false" >>"$GITHUB_OUTPUT"
           fi
 
-      # Idempotent: a re-run after a partial failure (publish succeeded but the
-      # Release step failed) skips the already-published version instead of
-      # dying on npm's republish block. dist/ comes from the Build step above.
-      # Only E404 means "not yet published" — any other npm error fails the step
-      # rather than silently falling through to a republish attempt.
+      # Idempotent so a re-run after a failed Release step doesn't hit npm's
+      # republish block. Only E404 means unpublished; other errors must not
+      # fall through to a publish attempt.
       - name: Publish to npm (Trusted Publishing / OIDC)
         run: |
           spec="$(node -p "require('./package.json').name")@${GITHUB_REF_NAME#v}"
@@ -82,8 +70,8 @@ jobs:
             exit 1
           fi
 
-      # Idempotent + --verify-tag: never recreate a deleted tag off the default
-      # branch (which would point the Release at code npm never published).
+      # --verify-tag: without it a deleted tag is recreated off the default
+      # branch, pointing the Release at code npm never published.
       - name: Create GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
